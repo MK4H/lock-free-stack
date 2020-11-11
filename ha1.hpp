@@ -58,15 +58,22 @@ void LFStack<T>::push(const T &v) {
 
 	impl::LinkedListNode<T> *n_head = new impl::LinkedListNode<T>(v);
 
+	impl::LinkedListHandle<T> c_handle = head_handle.load(std::memory_order_acquire);
 	for (;;) {
-		impl::LinkedListHandle<T> c_handle = head_handle.load(std::memory_order_acquire);
 		impl::LinkedListHandle<T> n_handle = c_handle;
 		n_head->next = n_handle.head;
 		n_handle.head = n_head;
 		++n_handle.tag;
 		// On success, we need to release all the writes
-		// On failure, any reads or writes we did in the cycle do not matter, so relax
-		if (head_handle.compare_exchange_weak(c_handle, n_handle, std::memory_order_release, std::memory_order_relaxed)){
+		// As per Issue #2, when compare exchange fails,
+		// it loads the actual value of head_handle to c_handle,
+		// we don't have to load it manually
+		if (head_handle.compare_exchange_weak(
+				c_handle,
+				n_handle,
+				std::memory_order_release,
+				std::memory_order_acquire)
+			){
 			break;
 		}
 	}
@@ -76,14 +83,22 @@ template <typename T>
 T LFStack<T>::pop() {
 	impl::LinkedListNode<T> *popped;
 
+	impl::LinkedListHandle<T> c_handle = head_handle.load(std::memory_order_acquire);
 	for (;;) {
-		impl::LinkedListHandle<T> c_handle = head_handle.load(std::memory_order_acquire);
 		impl::LinkedListHandle<T> n_handle = c_handle;
 
 		popped = n_handle.head;
 		n_handle.head = n_handle.head->next;
 		++n_handle.tag;
-		if (head_handle.compare_exchange_weak(c_handle, n_handle, std::memory_order_release, std::memory_order_relaxed)){
+		// As per Issue #2, when compare exchange fails,
+		// it loads the actual value of head_handle to c_handle,
+		// we don't have to load it manually
+		if (head_handle.compare_exchange_weak(
+				c_handle,
+				n_handle,
+				std::memory_order_release,
+				std::memory_order_acquire)
+			){
 			break;
 		}
 	}
