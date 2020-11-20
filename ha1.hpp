@@ -25,10 +25,10 @@ struct LinkedListNode;
  * WARNING: IS ONLY GUARANTEED TO WORK ON 64bit platforms
 */
 template <typename T>
-struct LinkedListHandle {
+struct alignas(16) LinkedListHandle {
 	uint64_t tag;
 	LinkedListNode<T> *head;
-} __attribute__((packed, aligned(16)));
+};
 
 template <typename T>
 struct LinkedListNode {
@@ -57,6 +57,7 @@ public:
 
 	bool empty() const;
 private:
+	static_assert(sizeof(impl::LinkedListHandle<T>) == 16);
 	std::atomic<impl::LinkedListHandle<T>> head_handle;
 	std::atomic<impl::LinkedListHandle<T>> pool_handle;
 
